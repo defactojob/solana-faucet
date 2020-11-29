@@ -1,0 +1,18 @@
+{
+  "faucetProgram": {
+    "pubkey": "8aioZhnW5Fo6K8357g2MDkRYhA2gyNnLnzDsycG9Ltpr",
+    "secret": "86398e62b4e706ca24d1c6873a4a85dc34096928b521d49d38b82bc325b3aaaf70a53de5df3dd339c308da06caa0abc3af29af56f0c65123832d5394770f939b"
+  },
+  "testToken": {
+    "pubkey": "GfrWk6GoHTK2Mj51DV5UixYUzFw1UhBNM6zv763WQHJW",
+    "secret": "b7cc401fdcd0899bd5a02dfed38f7f0e0cb22e60a019f463820417c773adcec7e8d35be44b2a2c53dd4d65c0a06ea0ab74cfa493ecf424982d93d69f0c5bf71f"
+  },
+  "faucetTokenAccount": {
+    "pubkey": "7xRw5eaoSkB4ZAByWFqf5Yk66nqcFxMDAhRrkhiAACae",
+    "secret": "f583f9a5c86eea12e07d1ab0c391aedd250fbfa0b92c4d9e0255eafef7b39859675941d9d483e8f0058851104b3dc61296ef22e8dc826e015dc5ab61b8b0f643"
+  },
+  "receiverTokenAccount": {
+    "pubkey": "6SvzeWoeJEuDV8FQW9EaNfKk5CwKe3T1jW1jqYs2wwFV",
+    "secret": "c528d22e48e65b37c3d0a71f725828d542254545f5502ded4a8b5abd6007256350ef0187165be0599154eb84aa1263a3cf8176b2c742b4dac90fd2de389d1b60"
+  }
+}
