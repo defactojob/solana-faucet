@@ -2,21 +2,12 @@ import {
   PublicKey,
   solana, Wallet, BPFLoader, SPLToken,
   ProgramAccount,
+  Deployer,
 } from "solray"
 
 import { promises as fs } from "fs"
 
 import { Faucet } from "./faucet"
-
-async function deployFaucet(wallet: Wallet) {
-  const bpfLoader = new BPFLoader(wallet)
-
-  const soPath = "build/program.so"
-  const soData = await fs.readFile(soPath)
-  console.log("program size:", soData.length)
-  const program = await bpfLoader.load(soData)
-  console.log("deployed to:", program.publicKey.toString())
-}
 
 async function main() {
   const master = {
@@ -28,35 +19,30 @@ async function main() {
   const wallet = await Wallet.fromMnemonic(master.mnemonic, conn)
 
   console.log("using wallet", wallet.address)
-  // console.log(wallet, await wallet.info())
 
-  // for (let i = 0; i < 11; i++) {
-  //   let account = wallet.deriveAccount(`${i}`)
-  //   console.log(i, account.publicKey.toString())
-  // }
 
-  const facuetPubkey = new PublicKey("9jpPoiHzs2ug2nGzzXTVjc8pQL14LgbcCt9n7avQU6e1")
-
-  // I don't like the "Token" name. Kinda awkward to distinguish between token instances.
+  const deployer = await Deployer.open("deploy.json")
   const spltoken = new SPLToken(wallet)
 
-  // const token = await spltoken.initializeMint({
-  //   mintAuthority: wallet.account.publicKey,
-  //   decimals: 8,
-  // })
-  // const tokenPubkey = token.publicKey
-  // console.log({ mintPubkey: tokenPubkey.toString() })
+  const faucetProgram = await deployer.ensure("faucetProgram", async () => {
+    const bpfLoader = new BPFLoader(wallet)
 
-  const tokenPubkey = new PublicKey("9PGzvRMriijtGcTNkgkShdqw6CFy9eQAySZUJ5je4Gx4")
-  // const mintInfo = await spltoken.mintInfo(tokenPubkey)
-  // console.log("mint authority", mintInfo.mintAuthority?.toBase58())
+    const soPath = "build/program.so"
+    const soData = await fs.readFile(soPath)
+    const program = await bpfLoader.load(soData)
 
+    return program
+  })
 
-  const faucetTokenOwner = await ProgramAccount.forSeed(Buffer.from("deadbeaf", "hex"), facuetPubkey)
-  console.log("faucet token owner", {
-    address: faucetTokenOwner.address,
-    seed: faucetTokenOwner.noncedSeed.toString("hex"),
-    nonce: faucetTokenOwner.nonce,
+  const facuetPubkey = faucetProgram.publicKey
+
+  const testToken = await deployer.ensure("testToken", async () => {
+    const token = await spltoken.initializeMint({
+      mintAuthority: wallet.account.publicKey,
+      decimals: 8,
+    })
+
+    return token
   })
 
   // The trick to create a program token account is to create a normal token account
@@ -65,52 +51,59 @@ async function main() {
   //
   // See: https://docs.solana.com/implemented-proposals/program-derived-addresses
   // Also See: https://docs.solana.com/implemented-proposals/cross-program-invocation
-  //
-  // const faucetTokenAccount = await spltoken.initializeAccount({
-  //   token: mintedTokenPubkey,
-  //   owner: faucetTokenAuthority.pubkey
-  // })
-  // const faucetTokenAccountPubkey = faucetTokenAccount.publicKey
-  // console.log({ faucetTokenAccountPubkey: faucetTokenAccountPubkey.toString() })
 
-  const faucetTokenAccountPubkey = new PublicKey("Cb6cwE2sE4FRmLDpo3EbkZozcyvFfiDEfDdVavE84QYg")
-  let tokenAccountInfo = await spltoken.accountInfo(faucetTokenAccountPubkey)
-  console.log("tokenAccountInfo", {
-    address: faucetTokenAccountPubkey.toBase58(),
-    owner: tokenAccountInfo.owner.toString(),
-    mint: tokenAccountInfo.mint.toString(),
+
+  // NOTE: because of an implementation quirk of how program account is generated,
+  // we choose only 32 bytes of the public key to use as seed.
+  const faucetTokenOwner = await ProgramAccount.forSeed(Buffer.from(testToken.publicKey.toBuffer()).slice(0, 30), facuetPubkey)
+  console.log("faucet token owner", {
+    address: faucetTokenOwner.address,
+    seed: faucetTokenOwner.noncedSeed.toString("hex"),
+    nonce: faucetTokenOwner.nonce,
   })
 
-  // await spltoken.mintTo({
-  //   token: tokenPubkey,
-  //   to: faucetTokenAccountPubkey,
-  //   amount: BigInt(10000e8),
-  //   mintAuthority: wallet.account,
-  // })
+  // mint tokens to faucet token account
+  const faucetTokenAccount = await deployer.ensure("faucetTokenAccount", async () => {
+    const faucetTokenAccount = await spltoken.initializeAccount({
+      token: testToken.publicKey,
+      owner: faucetTokenOwner.pubkey
+    })
 
-  const receiver = wallet.derive("1'/0")
-  console.log("receiver", receiver.address) // 6KHLWpARme9NZy8tohj5D3XHhStBeVcHknCyk7CJRQiy
-  // await spltoken.initializeAccount({
-  //   token: tokenPubkey,
-  //   owner: wallet.pubkey,
-  //   account: receiver.account,
-  // })
-  tokenAccountInfo = await spltoken.accountInfo(receiver.pubkey)
+    await spltoken.mintTo({
+      token: testToken.publicKey,
+      to: faucetTokenAccount.publicKey,
+      amount: BigInt(10000e8),
+      authority: wallet.account,
+    })
+
+    return faucetTokenAccount
+  })
+
+  const receiverTokenAccount = await deployer.ensure("receiverTokenAccount", async () => {
+    return spltoken.initializeAccount({
+      token: testToken.publicKey,
+      owner: wallet.pubkey,
+    })
+  })
+
+  const receiverAddress = receiverTokenAccount.publicKey.toString()
+
+  const receiverTokenAccountInfo = await spltoken.accountInfo(receiverTokenAccount.publicKey)
   console.log("receiver token account", {
-    address: receiver.address,
-    owner: tokenAccountInfo.owner.toString(),
-    mint: tokenAccountInfo.mint.toString(),
+    address: receiverAddress,
+    owner: receiverTokenAccountInfo.owner.toString(),
+    mint: receiverTokenAccountInfo.mint.toString(),
   })
 
   const faucet = new Faucet(wallet, facuetPubkey)
   await faucet.request({
-    receiver: receiver.pubkey,
-    tokenAccount: faucetTokenAccountPubkey,
+    receiver: receiverTokenAccount.publicKey,
+    tokenAccount: faucetTokenAccount.publicKey,
     tokenOwner: faucetTokenOwner,
   })
 
-  console.log(`sent one token from faucet to: ${receiver.address}`)
-  console.log(`view on devnet: https://explorer.solana.com/address/${receiver.address}?cluster=devnet`)
+  console.log(`sent one token from faucet to: ${receiverAddress}`)
+  console.log(`view on devnet: https://explorer.solana.com/address/${receiverAddress}?cluster=devnet`)
 }
 
 main().catch(err => console.log({ err }))
