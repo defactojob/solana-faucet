@@ -1496,7 +1496,7 @@ signal-exit@^3.0.0:
 
 "solray@https://github.com/defactojob/solray.git":
   version "0.0.1"
-  resolved "https://github.com/defactojob/solray.git#bf0d0eaacbb07590b94a447543b958b5fa92e270"
+  resolved "https://github.com/defactojob/solray.git#fb370c6b0a7766cd08382ee3e3f551623a883ce3"
   dependencies:
     "@solana/web3.js" "^0.86.4"
     bip32 "^2.0.6"
